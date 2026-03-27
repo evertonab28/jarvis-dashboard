@@ -73,6 +73,14 @@ export default function AgentsPage() {
     return `${days}d ago`;
   };
 
+  const getActivityLevel = (timestamp?: string): "recent" | "active" | "idle" | "unknown" => {
+    if (!timestamp) return "unknown";
+    const diff = Date.now() - new Date(timestamp).getTime();
+    if (diff < 5 * 60 * 1000) return "recent"; // 5 min
+    if (diff < 60 * 60 * 1000) return "active"; // 1 hour
+    return "idle";
+  };
+
   if (loading) {
     return (
       <div className="p-8">
@@ -186,16 +194,16 @@ export default function AgentsPage() {
                     <Circle
                       className="w-2 h-2"
                       style={{
-                        fill: agent.status === "online" ? "#4ade80" : "#6b7280",
-                        color: agent.status === "online" ? "#4ade80" : "#6b7280",
+                        fill: agent.status === "online" ? "#10b981" : "#6b7280",
+                        color: agent.status === "online" ? "#10b981" : "#6b7280",
                       }}
                     />
                     <span
-                      className="text-xs font-medium"
+                      className="text-xs font-semibold uppercase tracking-wider"
                       style={{
                         color:
                           agent.status === "online"
-                            ? "#4ade80"
+                            ? "#10b981"
                             : "var(--text-muted)",
                       }}
                     >
@@ -343,9 +351,24 @@ export default function AgentsPage() {
               {/* Last Activity */}
               <div className="flex items-center justify-between pt-3 border-t border-[var(--border)]">
                 <div className="flex items-center gap-2">
-                  <Activity className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                  <Activity
+                    className="w-4 h-4"
+                    style={{
+                      color:
+                        getActivityLevel(agent.lastActivity) === "recent"
+                          ? "#10b981"
+                          : "var(--text-muted)",
+                    }}
+                  />
                   <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-                    Last activity: {formatLastActivity(agent.lastActivity)}
+                    {getActivityLevel(agent.lastActivity) === "recent" ? (
+                      <span className="font-bold" style={{ color: "#10b981" }}>
+                        Active: {" "}
+                      </span>
+                    ) : (
+                      "Last activity: "
+                    )}
+                    {formatLastActivity(agent.lastActivity)}
                   </span>
                 </div>
                 {agent.activeSessions > 0 && (

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { readFileSync } from "fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "fs";
 import { join } from "path";
 
 export const dynamic = "force-dynamic";
@@ -58,7 +58,17 @@ function getAgentDisplayInfo(agentId: string, agentConfig: any): { emoji: string
 export async function GET() {
   try {
     // Read openclaw config
-    const configPath = (process.env.OPENCLAW_DIR || "/root/.openclaw") + "/openclaw.json";
+    // Find openclaw config in multiple common locations
+    let configPath = (process.env.OPENCLAW_DIR || "/root/.openclaw") + "/openclaw.json";
+    
+    if (!existsSync(configPath)) {
+      // Try current user's home as fallback
+      const homeConfig = join(process.env.HOME || "/home/ubuntu", ".openclaw/openclaw.json");
+      if (existsSync(homeConfig)) {
+        configPath = homeConfig;
+      }
+    }
+
     const config = JSON.parse(readFileSync(configPath, "utf-8"));
 
     // Get agents from config
@@ -70,23 +80,30 @@ export async function GET() {
         config.channels?.telegram?.accounts?.[agent.id];
       const botToken = telegramAccount?.botToken;
 
-      // Check if agent has recent activity
       const memoryPath = join(agent.workspace, "memory");
       let lastActivity = undefined;
       let status: "online" | "offline" = "offline";
 
+      // Check configuration for online status
+      // An agent is considered online if it's the main agent or has a telegram bot token configured
+      if (agent.id === "main" || botToken) {
+        status = "online";
+      }
+
+      // Find last activity from memory files
       try {
-        const today = new Date().toISOString().split("T")[0];
-        const memoryFile = join(memoryPath, `${today}.md`);
-        const stat = require("fs").statSync(memoryFile);
-        lastActivity = stat.mtime.toISOString();
-        // Consider online if activity within last 5 minutes
-        status =
-          Date.now() - stat.mtime.getTime() < 5 * 60 * 1000
-            ? "online"
-            : "offline";
+        if (existsSync(memoryPath)) {
+          const files = readdirSync(memoryPath).filter((f) => f.endsWith(".md"));
+          if (files.length > 0) {
+            // Sort files by name (YYYY-MM-DD.md) to find the most recent
+            files.sort().reverse();
+            const latestFile = join(memoryPath, files[0]);
+            const stat = statSync(latestFile);
+            lastActivity = stat.mtime.toISOString();
+          }
+        }
       } catch (e) {
-        // No recent activity
+        console.error(`Error reading memory for agent ${agent.id}:`, e);
       }
 
       // Get details of allowed subagents
